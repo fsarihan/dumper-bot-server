@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+	"target": "es6",
+	"module": "commonjs",
+	"noImplicitAny": false,
+	"sourceMap": true,
+	"outDir": "dist/",
+	"resolveJsonModule": true,
+	"removeComments": true
+  },
+  "exclude": [
+	"node_modules",
+	"**/*.spec.ts",
+	"dist"
+  ]
+}
