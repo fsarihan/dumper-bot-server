@@ -50,40 +50,53 @@ let accountList = accounts.get();
 http.listen(7575, () => {
 });
 let botList = {};
+let createBot = (data) => {
+    let apiKey = "";
+    let apiSecret = "";
+    let accountName = "";
+    accountList = accounts.get();
+    for (let i in accountList) {
+        let acc = accountList[i];
+        if (acc['status'] == 1 && acc['id'] == data.accountID) {
+            apiKey = acc['apiKey'];
+            apiSecret = acc['apiSecret'];
+            accountName = acc['name'];
+        }
+    }
+    if (apiKey !== "") {
+        let values = {
+            apiKey: apiKey,
+            apiSecret: apiSecret,
+            accountID: data.accountID,
+            accountName: accountName,
+            symbol: data.symbol,
+            type: parseInt(data.type)
+        }
+        bots.create(values);
+    }
+};
 setInterval(() => {
     if (botList !== bots.getBotList()) {
         botList = bots.getBotList();
         io.emit('botList', botList);
     }
-}, 275);
+}, 100);
 io.on("connection", function (socket: any) {
     socket.on('botList', () => {
         io.emit('botList', botList);
     });
     socket.on('createBot', (data) => {
-        let apiKey = "";
-        let apiSecret = "";
-        let accountName = "";
-        accountList = accounts.get();
-        for (let i in accountList) {
-            let acc = accountList[i];
-            if (acc['status'] == 1 && acc['id'] == data.accountID) {
-                apiKey = acc['apiKey'];
-                apiSecret = acc['apiSecret'];
-                accountName = acc['name'];
-            }
-        }
-        if (apiKey !== "") {
-            console.log("z");
-            let values = {
-                apiKey: apiKey,
-                apiSecret: apiSecret,
-                accountID: data.accountID,
-                accountName: accountName,
-                symbol: data.symbol,
-                type: parseInt(data.type)
-            }
-            bots.create(values);
+        createBot(data);
+    });
+    socket.on('stopBot', (data) => {
+        let botID = data.botID;
+        bots.stop(botID);
+    });
+    socket.on('reRunBot', (data) => {
+        let botID = data.botID;
+        let botData = botList[botID];
+        if (botData.alive == false) {
+            createBot(botData);
         }
     });
 
