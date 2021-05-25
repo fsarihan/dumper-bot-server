@@ -92,6 +92,11 @@ io.on("connection", function (socket: any) {
         let botID = data.botID;
         bots.stop(botID);
     });
+    socket.on('editBot', (data) => {
+        let botID = data.botID;
+        let type = data.type;
+        bots.edit(botID, type);
+    });
     socket.on('reRunBot', (data) => {
         let botID = data.botID;
         let botData = botList[botID];
@@ -99,7 +104,6 @@ io.on("connection", function (socket: any) {
             createBot(botData);
         }
     });
-
     socket.on('addAccount', (data) => {
         accounts.add(data).then(() => {
             notifier(1, "Account created!")
@@ -121,7 +125,7 @@ io.on("connection", function (socket: any) {
 
 });
 
-console.log("INFO:", "Started! v0.001", Date.now())
+console.log("INFO:", "Started! v0.0011", Date.now())
 
 
 

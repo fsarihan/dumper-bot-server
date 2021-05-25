@@ -163,4 +163,17 @@ export class Database {
         });
     }
 
+    @Log()
+    public editBot(botID, type) {
+        return new Promise((resolve, reject) => {
+            this.connection.query('UPDATE bots SET type = ' + type + ' WHERE id = ' + botID, function (error, results) {
+                if (!error) {
+                    resolve(results.changedRows);
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    }
+
 }

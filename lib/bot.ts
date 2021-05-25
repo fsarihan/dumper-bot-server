@@ -89,6 +89,26 @@ export class Bot {
     }
 
     @Log()
+    public edit(botID: number, type: number) {
+        if (typeof this.bots[botID] !== "undefined") {
+            let bot = this.bots[botID];
+            bot.type = type;
+            this.database.editBot(botID, type).then(() => {
+                this.updateBotList();
+                setTimeout(() => {
+                    this.notifier(1, "Bot ID:" + botID + " edited!");
+                }, 250);
+                return true;
+            })
+        } else {
+            setTimeout(() => {
+                this.notifier(2, "Bot ID:" + botID + " not active working!");
+            }, 250);
+
+        }
+    }
+
+    @Log()
     public stop(botID: number) {
         if (typeof this.bots[botID] !== "undefined") {
             let bot = this.bots[botID];
@@ -194,7 +214,6 @@ export class Bot {
     }
 
     private automation() {
-
         let loop = throttle(350, true, async () => {
             this.counter = 0;
             for (let botID in this.bots) {
@@ -223,7 +242,7 @@ export class Bot {
                         }
 
                     }
-                    let targettedPrice = targetPrice().toString();
+                    let targettedPrice = targetPrice();
                     let createOrder = (symbol, amount, price) => {
                         return new Promise((resolve, reject) => {
                             bot.binanceLib.createOrder(symbol, amount, price).then((orderDetail) => {
