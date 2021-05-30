@@ -97,28 +97,42 @@ export class Bot {
                 this.updateBotList();
                 setTimeout(() => {
                     this.notifier(1, "Bot ID:" + botID + " edited!");
-                }, 250);
+                }, 750);
                 return true;
             })
         } else {
             setTimeout(() => {
-                this.notifier(2, "Bot ID:" + botID + " not active working!");
-            }, 250);
+                this.notifier(2, "Bot ID:" + botID + " not active!");
+                this.database.editBot(botID, type).then(() => {
+                    this.updateBotList();
+                    setTimeout(() => {
+                        this.notifier(1, "Bot ID:" + botID + " offline edited!");
+                    }, 250);
+                    return true;
+                })
+            }, 750);
 
         }
     }
 
     @Log()
-    public stop(botID: number) {
-        if (typeof this.bots[botID] !== "undefined") {
+    public stop(botID: number, isWatch?: boolean) {
+        if (isWatch) {
             let bot = this.bots[botID];
-            this.notifier(1, bot.symbol + " bot completed!");
-            this.bots[botID].alive = false;
-            delete this.bots[botID];
+            this.notifier(3, "Bot is watching balances " + bot["symbol"] + " Bot ID: " + botID);
+            this.bots[botID].watch = true;
             this.updateBotList();
-            return true;
+        } else {
+            if (typeof this.bots[botID] !== "undefined") {
+                let bot = this.bots[botID];
+                this.notifier(1, bot.symbol + " bot completed!");
+                this.bots[botID].alive = false;
+                delete this.bots[botID];
+                this.updateBotList();
+                return true;
+            }
+            return false;
         }
-        return false;
     }
 
     @Log()
@@ -128,7 +142,13 @@ export class Bot {
                 for (let botID in this.bots) {
                     let bot = this.bots[botID];
                     if (bot.apiKey == apiKey && bot.baseAsset == data.asset) {
-                        bot.baseBalance = data.available;
+                        bot.baseBalance = data;
+                        if (bot.watch) {
+                            this.notifier(1, "Balance change detected! Bot started " + values["symbol"] + " Bot ID: " + botID);
+                            this.counter++;
+                            this.bots[botID].watch = false;
+                            this.updateBotList();
+                        }
                     }
                 }
             }
@@ -137,7 +157,7 @@ export class Bot {
                     let bot = this.bots[botID];
                     let symbol = bot.symbol;
                     if (bot.apiKey == apiKey && symbol == data.s) {
-                        if (data.e == "executionReport") {
+                        if (data.e == "executionReport" && data.S == "SELL") {
                             if (typeof bot.orders[data.i] !== "undefined") {
                                 bot.orders[data.i].logs.push(data);
                                 bot.orders[data.i].status = data.X;
@@ -178,33 +198,39 @@ export class Bot {
             minQty = parseFloat(data.symbols[0].filters[2]["minQty"]);
             let currentBaseBalance = binanceLib.getBalance(data.symbols[0].baseAsset);
             currentBaseBalance.then((baseBalance) => {
-                if (parseFloat(baseBalance['available']) > minQty) {
-                    this.database.createBot(values["symbol"], values["accountID"], values["type"]).then((botID) => {
-                        this.bots[botID] = {
-                            accountID: values["accountID"],
-                            botID: botID,
-                            apiKey: values["apiKey"],
-                            type: values["type"],
-                            symbol: values["symbol"],
-                            accountName: values["accountName"],
-                            priceTickSize: priceTickSize,
-                            lotStepSize: lotStepSize,
-                            binanceLib: binanceLib,
-                            lastPrice: false,
-                            baseAsset: data.symbols[0].baseAsset,
-                            quoteAsset: data.symbols[0].quoteAsset,
-                            baseBalance: baseBalance,
-                            alive: true,
-                            orders: {},
-                        }
+                this.database.createBot(values["symbol"], values["accountID"], values["type"]).then((botID) => {
+                    this.bots[botID] = {
+                        accountID: values["accountID"],
+                        botID: botID,
+                        apiKey: values["apiKey"],
+                        type: values["type"],
+                        symbol: values["symbol"],
+                        accountName: values["accountName"],
+                        priceTickSize: priceTickSize,
+                        lotStepSize: lotStepSize,
+                        binanceLib: binanceLib,
+                        lastPrice: false,
+                        baseAsset: data.symbols[0].baseAsset,
+                        quoteAsset: data.symbols[0].quoteAsset,
+                        baseBalance: baseBalance,
+                        alive: true,
+                        watch: false,
+                        orders: {},
+                    }
+                    if (parseFloat(baseBalance['available']) > minQty) {
                         this.counter++;
                         this.notifier(1, "Bot started " + values["symbol"] + " Bot ID: " + botID);
                         this.updateBotList();
-                    });
-                } else {
-                    this.notifier(2, data.symbols[0].baseAsset + " balance must be higher than minQty requirement.");
-                    this.updateBotList();
-                }
+                    } else {
+                        this.notifier(2, data.symbols[0].baseAsset + " balance must be higher than minQty requirement.");
+                        this.notifier(3, "Bot is watching balances " + values["symbol"] + " Bot ID: " + botID);
+                        this.bots[botID].watch = true;
+                        this.updateBotList();
+                    }
+                });
+
+            }).catch((err) => {
+                this.notifier(2, "Please check your api!");
             });
         });
         // } else {
@@ -258,13 +284,13 @@ export class Bot {
                             }).catch((err) => {
                                 if (err.body === '{"code":-1013,"msg":"Invalid quantity."}' || err.body === '{"code":-1013,"msg":"Filter failure: MIN_NOTIONAL"}') {
                                     this.notifier(2, err.body);
-                                    this.stop(bot.botID);
+                                    this.stop(bot.botID, true);
                                 } else {
                                     console.log(err.body);
+                                    this.notifier(false, err.body);
+                                    this.stop(bot.botID);
                                 }
-                                this.notifier(false, err.body);
-                                this.stop(bot.botID);
-                                // reject(err.body);
+
                             });
                         });
 
