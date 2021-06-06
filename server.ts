@@ -3,7 +3,7 @@ import {Bot} from "./lib/bot";
 import {Accounts} from "./lib/accounts";
 import {Database} from "./lib/database";
 import * as Express from 'express';
-import {setConfig} from 'class-logger'
+
 
 const database = new Database();
 const app = Express();
@@ -25,25 +25,8 @@ let notifier = (type: number, message: string) => {
     }
     // logger(message);
 }
-const logger = (...args) => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const seconds = date.getSeconds();
-    const mSeconds = date.getMilliseconds();
-    const timestamp = (day + "/" + month + "/" + year + " - " + hours + "." + minutes + ":" + seconds + ":" + mSeconds + "!.!.");
-    const log = `${timestamp}: ${args}`;
-    database.insertLog(log);
-    io.emit("logs", log);
 
-}
-setConfig({
-    log: logger,
-    logError: logger,
-})
+
 let bots = new Bot(notifier);
 let accounts = new Accounts();
 let accountList = accounts.get();
@@ -97,6 +80,10 @@ io.on("connection", function (socket: any) {
         let type = data.type;
         bots.edit(botID, type);
     });
+    socket.on('deleteBot', (data) => {
+        let botID = data.botID;
+        bots.safeDelete(botID);
+    });
     socket.on('reRunBot', (data) => {
         let botID = data.botID;
         let botData = botList[botID];
@@ -125,7 +112,7 @@ io.on("connection", function (socket: any) {
 
 });
 
-console.log("INFO:", "Started! v0.0011", Date.now())
+console.log("INFO:", "Started! v1.00", Date.now())
 
 
 

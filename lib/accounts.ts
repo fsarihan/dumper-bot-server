@@ -1,8 +1,5 @@
 import {Database} from "./database";
-import {LogClass, Log} from 'class-logger'
 
-
-@LogClass()
 export class Accounts {
 
     public accounts;
@@ -15,7 +12,7 @@ export class Accounts {
         });
     }
 
-    @Log()
+
     public add(data) {
         return new Promise((resolve, reject) => {
             this.database.addAccount(data['name'], data['apiKey'], data['apiSecret']).then((accountID) => {
@@ -31,7 +28,7 @@ export class Accounts {
         });
     }
 
-    @Log()
+
     public delete(accountID) {
         return new Promise((resolve, reject) => {
             this.database.deleteAccount(accountID).then(() => {
@@ -43,7 +40,6 @@ export class Accounts {
         });
     }
 
-    @Log()
     public get() {
         return this.accounts;
     }

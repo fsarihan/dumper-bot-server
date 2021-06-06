@@ -1,10 +1,8 @@
 import {BinancePublicLib} from "./binancePublic";
 import {BinanceLib} from "./binance";
 import {Database} from "./database";
-import {LogClass, Log} from 'class-logger'
 import {throttle} from 'throttle-debounce';
 
-@LogClass()
 export class Bot {
     public binancePublic;
     public database;
@@ -42,7 +40,6 @@ export class Bot {
         }
     }
 
-    @Log()
     private setOrderBook(): void {
         this.binancePublic.on("orderBook", (ticker) => {
             if (this.symbolExist(ticker['symbol'])) {
@@ -71,6 +68,7 @@ export class Bot {
                     type: dbBot['type'],
                     orders: false,
                     accountName: dbBot['accountName'],
+                    updatedAt: dbBot['updated_at']
                 }
             }
             for (let botID in this.bots) {
@@ -82,13 +80,29 @@ export class Bot {
                     type: bot.type,
                     orders: bot.orders,
                     accountName: bot.accountName,
+                    updatedAt: bot.updatedAt
                 }
             }
             this.botList = botList;
         });
     }
 
-    @Log()
+    public safeDelete(botID: number) {
+        if (typeof this.bots[botID] !== "undefined") {
+            this.notifier(2, "Can't delete Bot ID:" + botID + " is still active!");
+        } else {
+            setTimeout(() => {
+                this.database.deleteBot(botID).then(() => {
+                    this.updateBotList();
+                    setTimeout(() => {
+                        this.notifier(1, "Bot ID:" + botID + " deleted!");
+                    }, 250);
+                    return true;
+                })
+            }, 750);
+        }
+    }
+
     public edit(botID: number, type: number) {
         if (typeof this.bots[botID] !== "undefined") {
             let bot = this.bots[botID];
@@ -115,13 +129,21 @@ export class Bot {
         }
     }
 
-    @Log()
     public stop(botID: number, isWatch?: boolean) {
         if (isWatch) {
             let bot = this.bots[botID];
-            this.notifier(3, "Bot is watching balances " + bot["symbol"] + " Bot ID: " + botID);
-            this.bots[botID].watch = true;
-            this.updateBotList();
+            if (Object.keys(bot.orders).length > 0) {
+                this.notifier(1, bot.symbol + " bot completed!");
+                console.log("Bot deleted for:", bot.symbol);
+                this.bots[botID].alive = false;
+                delete this.bots[botID];
+                this.updateBotList();
+            } else {
+                this.notifier(3, "Bot is watching balances " + bot["symbol"] + " Bot ID: " + botID);
+                this.bots[botID].watch = true;
+                this.updateBotList();
+            }
+
         } else {
             if (typeof this.bots[botID] !== "undefined") {
                 let bot = this.bots[botID];
@@ -135,7 +157,6 @@ export class Bot {
         }
     }
 
-    @Log()
     public create(values) {
         if (typeof this.accounts[values["apiKey"]] === "undefined") {
             let balanceUpdate = (apiKey, data) => {
@@ -144,10 +165,12 @@ export class Bot {
                     if (bot.apiKey == apiKey && bot.baseAsset == data.asset) {
                         bot.baseBalance = data;
                         if (bot.watch) {
-                            this.notifier(1, "Balance change detected! Bot started " + values["symbol"] + " Bot ID: " + botID);
-                            this.counter++;
+                            this.notifier(1, "Balance change detected! Bot started " + bot["symbol"] + " Bot ID: " + botID);
                             this.bots[botID].watch = false;
                             this.updateBotList();
+                            setTimeout(() => {
+                                this.counter++;
+                            }, 1000);
                         }
                     }
                 }
@@ -245,23 +268,24 @@ export class Bot {
             for (let botID in this.bots) {
                 let bot = this.bots[botID];
                 let symbol = bot.symbol;
-                if (bot.alive && this.symbolExist(symbol)) {
+                if (bot.alive && this.symbolExist(symbol) && !bot.watch) {
                     let orderBook = this.orderBook[symbol];
                     let targetPrice = () => {
                         if (parseFloat(orderBook["bestAsk"]) !== parseFloat(bot['lastPrice'])) {
                             switch (bot.type) {
-                                case 1:
+                                case 1: {
                                     return this.binancePublic.roundPrice((parseFloat(orderBook["bestAsk"]) - bot.priceTickSize), bot.priceTickSize);
                                     //TOP Lowest Sell Price’ın en küçük hanesinden 1 birim eksiltir.
-                                    break;
-                                case 2:
+                                }
+                                case 2: {
                                     return this.binancePublic.roundPrice((parseFloat(orderBook["bestBid"]) + parseFloat(orderBook["bestAsk"])) / 2, bot.priceTickSize);
                                     //MIDDLE Lowest Sell Price ile Highest Buy Price toplanır çıkan sonuç 2’ye bölünür
-                                    break;
-                                case 3:
+                                }
+                                case 3: {
                                     return this.binancePublic.roundPrice(parseFloat(orderBook["bestBid"]) + bot.priceTickSize, bot.priceTickSize);
                                     //BOTTOM Highest Buy Price’ı 1 tık arttıracağız.
-                                    break;
+                                }
+
                             }
                         } else {
                             return parseFloat(bot['lastPrice']);
@@ -284,11 +308,12 @@ export class Bot {
                             }).catch((err) => {
                                 if (err.body === '{"code":-1013,"msg":"Invalid quantity."}' || err.body === '{"code":-1013,"msg":"Filter failure: MIN_NOTIONAL"}') {
                                     this.notifier(2, err.body);
+                                    this.notifier(2, bot.symbol);
                                     this.stop(bot.botID, true);
                                 } else {
                                     console.log(err.body);
                                     this.notifier(false, err.body);
-                                    this.stop(bot.botID);
+                                    // this.stop(bot.botID);
                                 }
 
                             });
